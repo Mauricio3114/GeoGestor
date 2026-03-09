@@ -1,19 +1,21 @@
 import os
-from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from io import BytesIO
+
+import requests
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_file
 from flask_login import login_user, login_required, logout_user, current_user
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 from config import Config
 from extensions import db, login_manager
 from models import User, Jornada, Localizacao
-from flask import send_file
-from io import BytesIO
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
 
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
-import requests
+def agora_fortaleza():
+    return datetime.now(ZoneInfo("America/Fortaleza")).replace(tzinfo=None)
 
 
 app = Flask(__name__)
@@ -69,7 +71,7 @@ def admin_dashboard():
 
     gestores = User.query.filter_by(perfil="gestor").all()
     dados_mapa = []
-    agora = datetime.utcnow()
+    agora = agora_fortaleza()
 
     for gestor in gestores:
         ultima_localizacao = (
@@ -121,7 +123,10 @@ def gestor_dashboard():
         .first()
     )
 
-    jornada_ativa = Jornada.query.filter_by(usuario_id=current_user.id, status="ativa").first()
+    jornada_ativa = Jornada.query.filter_by(
+        usuario_id=current_user.id,
+        status="ativa"
+    ).first()
 
     return render_template(
         "gestor_dashboard.html",
@@ -133,7 +138,10 @@ def gestor_dashboard():
 @app.route("/jornada/iniciar", methods=["POST"])
 @login_required
 def iniciar_jornada():
-    jornada_ativa = Jornada.query.filter_by(usuario_id=current_user.id, status="ativa").first()
+    jornada_ativa = Jornada.query.filter_by(
+        usuario_id=current_user.id,
+        status="ativa"
+    ).first()
 
     if jornada_ativa:
         flash("Já existe uma jornada ativa.", "warning")
@@ -150,14 +158,17 @@ def iniciar_jornada():
 @app.route("/jornada/parar", methods=["POST"])
 @login_required
 def parar_jornada():
-    jornada_ativa = Jornada.query.filter_by(usuario_id=current_user.id, status="ativa").first()
+    jornada_ativa = Jornada.query.filter_by(
+        usuario_id=current_user.id,
+        status="ativa"
+    ).first()
 
     if not jornada_ativa:
         flash("Nenhuma jornada ativa encontrada.", "warning")
         return redirect(url_for("gestor_dashboard"))
 
     jornada_ativa.status = "encerrada"
-    jornada_ativa.fim = datetime.now(ZoneInfo("America/Fortaleza"))
+    jornada_ativa.fim = agora_fortaleza()
     db.session.commit()
 
     flash("Jornada encerrada com sucesso.", "success")
@@ -180,12 +191,11 @@ def salvar_localizacao():
 
     try:
         url = f"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json"
-
         headers = {
             "User-Agent": "GeoGestor-System"
         }
 
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=10)
         resultado = response.json()
 
         address = resultado.get("address", {})
@@ -209,11 +219,6 @@ def salvar_localizacao():
         cidade=cidade,
         estado=estado
     )
-
-    db.session.add(localizacao)
-    db.session.commit()
-
-    return jsonify({"status": "ok", "mensagem": "Localização salva com sucesso"})
 
     db.session.add(localizacao)
     db.session.commit()
@@ -317,7 +322,7 @@ def admin_gestor_mapa(gestor_id):
 
     online = False
     if jornada_ativa and ultima_localizacao:
-        diferenca = datetime.utcnow() - ultima_localizacao.data_hora
+        diferenca = agora_fortaleza() - ultima_localizacao.data_hora
         if diferenca.total_seconds() <= 300:
             online = True
 
@@ -358,6 +363,7 @@ def admin_gestor_mapa(gestor_id):
         data_inicial=data_inicial,
         data_final=data_final
     )
+
 
 @app.route("/admin/gestor/<int:gestor_id>/exportar-pdf")
 @login_required
@@ -443,6 +449,7 @@ def exportar_pdf_movimentacao(gestor_id):
         download_name=f"relatorio_movimentacao_{gestor.nome.replace(' ', '_').lower()}.pdf",
         mimetype="application/pdf"
     )
+
 
 if __name__ == "__main__":
     with app.app_context():

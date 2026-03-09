@@ -5,8 +5,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from extensions import db, login_manager
 
+
 def agora_brasil():
-    return datetime.now(ZoneInfo("America/Fortaleza"))
+    return datetime.now(ZoneInfo("America/Fortaleza")).replace(tzinfo=None)
 
 
 class User(UserMixin, db.Model):
