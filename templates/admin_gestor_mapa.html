@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Mapa do Gestor - GeoGestor{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <h1>Mapa do Gestor</h1>
+    <p class="muted">Visualização individual da localização, rota e movimentação</p>
+</div>
+
+<div class="card gestor-detalhe-card">
+    <div class="gestor-topo">
+        <div>
+            <h2>{{ gestor.nome }}</h2>
+            <p class="muted">{{ gestor.email }}</p>
+        </div>
+
+        {% if online %}
+            <span class="badge online">● Online</span>
+        {% else %}
+            <span class="badge offline">● Offline</span>
+        {% endif %}
+    </div>
+
+    <div class="detalhe-grid">
+        <div class="mini-info">
+            <strong>Jornada</strong>
+            <span>{{ "Ativa" if jornada_ativa else "Encerrada" }}</span>
+        </div>
+
+        <div class="mini-info">
+            <strong>Última atualização</strong>
+            <span>
+                {% if ultima_localizacao %}
+                    {{ ultima_localizacao.data_hora.strftime('%d/%m/%Y %H:%M') }}
+                {% else %}
+                    Sem localização
+                {% endif %}
+            </span>
+        </div>
+
+        <div class="mini-info">
+            <strong>Cidade</strong>
+            <span>
+                {% if ultima_localizacao %}
+                    {{ ultima_localizacao.cidade or "Não informada" }}
+                    {% if ultima_localizacao.estado %}/{{ ultima_localizacao.estado }}{% endif %}
+                {% else %}
+                    -
+                {% endif %}
+            </span>
+        </div>
+
+        <div class="mini-info">
+            <strong>Pontos salvos</strong>
+            <span>{{ rota_pontos|length }}</span>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="map-header-inline">
+        <h2>Filtro por Período</h2>
+        <a class="btn-link" href="{{ url_for('admin_dashboard') }}">Voltar ao painel</a>
+    </div>
+
+    <form method="GET" class="filter-grid">
+        <input type="date" name="data_inicial" value="{{ data_inicial or '' }}">
+        <input type="date" name="data_final" value="{{ data_final or '' }}">
+        <button type="submit">Aplicar Filtro</button>
+        <a class="btn-link btn-secondary" href="{{ url_for('admin_gestor_mapa', gestor_id=gestor.id) }}">Limpar</a>
+        <a class="btn-link" href="{{ url_for('exportar_pdf_movimentacao', gestor_id=gestor.id, data_inicial=data_inicial, data_final=data_final) }}">Exportar PDF</a>
+    </form>
+</div>
+
+<div class="card">
+    <div class="map-header-inline">
+        <h2>Mapa com Rota</h2>
+    </div>
+
+    <div id="map-individual"></div>
+</div>
+
+<div class="card">
+    <h2>Timeline de Movimentação</h2>
+
+    <div class="timeline">
+        {% for item in timeline|reverse %}
+        <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-content">
+                <strong>{{ item.data_hora }}</strong>
+                <p>{{ item.cidade }}{% if item.estado %}/{{ item.estado }}{% endif %}</p>
+                <small>Lat: {{ item.latitude }} | Lon: {{ item.longitude }}</small>
+            </div>
+        </div>
+        {% else %}
+        <p>Nenhuma movimentação registrada nesse período.</p>
+        {% endfor %}
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+    const rotaPontos = {{ rota_pontos | tojson }};
+    const map = L.map('map-individual').setView([-14.2350, -51.9253], 4);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    if (rotaPontos.length > 0) {
+        const coordenadas = rotaPontos.map(p => [p.latitude, p.longitude]);
+
+        const linha = L.polyline(coordenadas, {
+            color: '#38bdf8',
+            weight: 4,
+            opacity: 0.9
+        }).addTo(map);
+
+        rotaPontos.forEach((ponto, index) => {
+            let classe = 'red';
+
+            if (index === 0) {
+                classe = 'green';
+            } else if (index === rotaPontos.length - 1) {
+                classe = 'blue';
+            }
+
+            const icon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div class="pulse-marker ${classe}"></div>`,
+                iconSize: [18, 18],
+                iconAnchor: [9, 9]
+            });
+
+            const marker = L.marker([ponto.latitude, ponto.longitude], { icon }).addTo(map);
+
+            marker.bindPopup(`
+                <strong>Ponto ${index + 1}</strong><br>
+                ${ponto.cidade}${ponto.estado ? '/' + ponto.estado : ''}<br>
+                ${ponto.data_hora}
+            `);
+        });
+
+        map.fitBounds(linha.getBounds(), { padding: [40, 40] });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Painel Gestor - GeoGestor{% endblock %}
+
+{% block content %}
+<h1>Painel do Gestor</h1>
+
+<div class="card">
+    <h2>Jornada</h2>
+
+    {% if jornada_ativa %}
+        <p>Status: <strong class="text-green">Ativa</strong></p>
+        <form method="POST" action="{{ url_for('parar_jornada') }}">
+            <button type="submit" class="danger">Parar Jornada</button>
+        </form>
+        <div class="auto-box">
+            <p><strong>Monitoramento:</strong> automático ativo</p>
+            <p id="auto-status">Aguardando envio automático...</p>
+        </div>
+    {% else %}
+        <p>Status: <strong>Encerrada</strong></p>
+        <form method="POST" action="{{ url_for('iniciar_jornada') }}">
+            <button type="submit">Iniciar Jornada</button>
+        </form>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>Minha última localização</h2>
+
+    {% if ultima_localizacao %}
+        <p><strong>Latitude:</strong> {{ ultima_localizacao.latitude }}</p>
+        <p><strong>Longitude:</strong> {{ ultima_localizacao.longitude }}</p>
+        <p><strong>Atualizado em:</strong> {{ ultima_localizacao.data_hora.strftime('%d/%m/%Y %H:%M:%S') }}</p>
+    {% else %}
+        <p>Nenhuma localização registrada ainda.</p>
+    {% endif %}
+
+    <button onclick="capturarLocalizacao()">Atualizar minha localização</button>
+</div>
+
+<script src="{{ url_for('static', filename='js/location.js') }}"></script>
+
+{% if jornada_ativa %}
+<script>
+    window.addEventListener("load", function() {
+        iniciarAtualizacaoAutomatica();
+    });
+</script>
+{% endif %}
+{% endblock %}
