@@ -11,6 +11,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -156,7 +157,7 @@ def parar_jornada():
         return redirect(url_for("gestor_dashboard"))
 
     jornada_ativa.status = "encerrada"
-    jornada_ativa.fim = datetime.utcnow()
+    jornada_ativa.fim = datetime.now(ZoneInfo("America/Fortaleza"))
     db.session.commit()
 
     flash("Jornada encerrada com sucesso.", "success")
